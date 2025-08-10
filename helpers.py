@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 import pandas as pd
-import numpy as np
 import datetime
+import mido
 
 def html_get_df(filename):
   # Load the HTML file
@@ -37,6 +37,39 @@ def html_get_df(filename):
   df = df.sort_values(by='Date')
 
   return df
+
+def midi_get_df(filename):
+  # Load your MIDI file
+  midi_file = mido.MidiFile(filename)
+
+  notes_data = []
+  note_on_times = {}  # Dictionary to store when each note started
+
+  current_time = 0.0
+
+  # Iterate through all messages in all tracks merged
+  for msg in midi_file.play():  # .play() converts ticks to real-time seconds
+      current_time += msg.time  # accumulate time in seconds
+
+      if msg.type == 'note_on' and msg.velocity > 0:
+          # Note started
+          note_on_times[msg.note] = current_time
+
+      elif (msg.type == 'note_off') or (msg.type == 'note_on' and msg.velocity == 0):
+          # Note ended
+          if msg.note in note_on_times:
+              start_time = note_on_times.pop(msg.note)
+              duration = current_time - start_time
+              notes_data.append({
+                  'note': msg.note,
+                  'start_time': start_time,
+                  'end_time': current_time,
+                  'duration': duration
+              })
+  df = pd.DataFrame(notes_data)
+
+  return df
+
 
 def str_to_datetime(s):
   split = s.split('-')

@@ -66,3 +66,32 @@ def df_to_windowed_df(dataframe, first_date_str, last_date_str, n=3):
 
   return ret_df
 
+def prepare_note_duration_data(df, start_idx=0, end_idx=None, samples_per_row=3):
+  df['end_time'] = df['start_time'].shift(-1)  # create end_time as next note’s start_time
+  df = df.dropna(subset=['end_time'])          # drop last row where end_time would be NaN
+
+  df = df.iloc[start_idx:end_idx].reset_index(drop=True)
+
+  # Ensure we have a duration column
+  if "duration" not in df.columns:
+    if "start_time" in df.columns and "end_time" in df.columns:
+      df["duration"] = df["end_time"] - df["start_time"]
+    else:
+      raise ValueError("DataFrame must have either 'duration' or both 'start_time' and 'end_time'.")
+
+  rows = []
+  for i in range(len(df) - samples_per_row):
+    past_durations = df["duration"].iloc[i:i+samples_per_row].tolist()
+    past_notes = df["note"].iloc[i:i+samples_per_row].tolist()
+
+    target_duration = df["duration"].iloc[i + samples_per_row]
+    target_note = df["note"].iloc[i + samples_per_row]
+
+    row = past_durations + past_notes + [target_duration, target_note]
+    rows.append(row)
+
+  duration_cols = [f"duration_{j+1}" for j in range(samples_per_row)]
+  note_cols = [f"note_{j+1}" for j in range(samples_per_row)]
+  cols = duration_cols + note_cols + ["target_duration", "target_note"]
+
+  return pd.DataFrame(rows, columns=cols)

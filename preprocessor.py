@@ -95,3 +95,37 @@ def prepare_note_duration_data(df, start_idx=0, end_idx=None, samples_per_row=3)
   cols = duration_cols + note_cols + ["target_duration", "target_note"]
 
   return pd.DataFrame(rows, columns=cols)
+
+def prepare_note_duration_data(df, start_idx=0, end_idx=None, samples_per_row=3):
+    # Create end_time as the next note's start_time
+    df['end_time'] = df['start_time'].shift(-1)
+    df = df.dropna(subset=['end_time'])
+
+    # Slice based on start/end index
+    df = df.iloc[start_idx:end_idx].reset_index(drop=True)
+
+    # Ensure we have a duration column
+    if "duration" not in df.columns:
+        if "start_time" in df.columns and "end_time" in df.columns:
+            df["duration"] = df["end_time"] - df["start_time"]
+        else:
+            raise ValueError("DataFrame must have either 'duration' or both 'start_time' and 'end_time'.")
+
+    rows = []
+    for i in range(len(df) - samples_per_row):
+        start_time = df["start_time"].iloc[i]  # keep start time of first note in window
+        past_durations = df["duration"].iloc[i:i+samples_per_row].tolist()
+        past_notes = df["note"].iloc[i:i+samples_per_row].tolist()
+
+        target_duration = df["duration"].iloc[i + samples_per_row]
+        target_note = df["note"].iloc[i + samples_per_row]
+
+        row = [start_time] + past_durations + past_notes + [target_duration, target_note]
+        rows.append(row)
+
+    # Column names
+    duration_cols = [f"duration_{j+1}" for j in range(samples_per_row)]
+    note_cols = [f"note_{j+1}" for j in range(samples_per_row)]
+    cols = ["start_time"] + duration_cols + note_cols + ["target_duration", "target_note"]
+
+    return pd.DataFrame(rows, columns=cols)
